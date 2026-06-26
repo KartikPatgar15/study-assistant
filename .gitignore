@@ -1,0 +1,29 @@
+# ─── OS ───────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── IDE ──────────────────────────────────────────────
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# ─── Environment ──────────────────────────────────────
+.env
+.env.local
+.env.*.local
+application-local.properties
+
+# ─── Frontend ─────────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# ─── Backend ──────────────────────────────────────────
+backend/target/
+backend/*.log
+
+# ─── Logs ─────────────────────────────────────────────
+*.log
+logs/

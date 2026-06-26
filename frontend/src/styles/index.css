@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    /* Smooth scrolling unless the user prefers reduced motion */
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
+  body {
+    @apply bg-surface-muted text-slate-800 font-sans antialiased;
+  }
+}
+
+@layer components {
+  /* Reusable card surface used throughout the app */
+  .card {
+    @apply bg-white rounded-2xl border border-surface-border shadow-sm;
+  }
+
+  /* Status badge variants */
+  .badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium;
+  }
+  .badge-green {
+    @apply badge bg-emerald-50 text-emerald-700;
+  }
+  .badge-indigo {
+    @apply badge bg-brand-50 text-brand-600;
+  }
+}

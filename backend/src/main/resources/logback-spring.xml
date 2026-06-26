@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Logback configuration.
+
+  Two appenders are defined:
+    CONSOLE  – human-readable, always active
+    FILE     – rolling JSON-structured log, active in prod profile
+
+  Future modules can enrich MDC with request IDs and session tokens;
+  the pattern already includes %X{requestId} and %X{sessionId} placeholders
+  so those values appear automatically once populated.
+-->
+<configuration>
+
+  <springProfile name="!prod">
+    <!-- ── Development: readable console output ─────────────────────────── -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+      <encoder>
+        <pattern>%d{HH:mm:ss.SSS} %highlight(%-5level) %cyan(%logger{30}) [%X{requestId:-–}] %msg%n</pattern>
+      </encoder>
+    </appender>
+
+    <root level="INFO">
+      <appender-ref ref="CONSOLE"/>
+    </root>
+
+    <logger name="com.studyassistant" level="DEBUG"/>
+  </springProfile>
+
+  <springProfile name="prod">
+    <!-- ── Production: rolling file with structured output ──────────────── -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+      <file>logs/study-assistant.log</file>
+      <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+        <fileNamePattern>logs/study-assistant.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+        <maxFileSize>50MB</maxFileSize>
+        <maxHistory>30</maxHistory>
+        <totalSizeCap>1GB</totalSizeCap>
+      </rollingPolicy>
+      <encoder>
+        <!-- One JSON object per line – ingestible by Datadog, CloudWatch, Loki, etc. -->
+        <pattern>{"ts":"%d{ISO8601}","level":"%-5level","logger":"%logger{36}","requestId":"%X{requestId:-}","msg":"%msg"}%n</pattern>
+      </encoder>
+    </appender>
+
+    <root level="INFO">
+      <appender-ref ref="FILE"/>
+    </root>
+  </springProfile>
+
+</configuration>
