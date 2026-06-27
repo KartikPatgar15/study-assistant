@@ -4,3 +4,7 @@ logs/
 application-local.properties
 application-prod.properties
 .mvn/wrapper/maven-wrapper.jar
+
+# Uploaded files – never commit user data
+uploads/*
+!uploads/.gitkeep

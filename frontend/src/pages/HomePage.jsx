@@ -1,11 +1,9 @@
+import { Link } from 'react-router-dom';
 import StatusBadge from '../components/StatusBadge.jsx';
 import { useHealthCheck } from '../hooks/useHealthCheck.js';
 
 /**
- * M01 landing page.
- *
- * Displays the project title, status, and a short overview of what's coming.
- * Future modules will replace the placeholder section with real functionality.
+ * Landing page – updated in M02 to reflect module completion and add nav.
  */
 export default function HomePage() {
   const { status } = useHealthCheck();
@@ -37,7 +35,10 @@ function Header() {
           <BookIcon />
           <span className="font-semibold text-slate-800 tracking-tight">StudyAssistant</span>
         </div>
-        <span className="text-xs text-slate-400 font-mono">v0.1.0 · M01</span>
+        <nav className="flex items-center gap-4 text-sm">
+          <Link to="/"       className="text-brand-500 font-medium">Home</Link>
+          <Link to="/upload" className="text-slate-500 hover:text-slate-800 transition-colors">Upload</Link>
+        </nav>
       </div>
     </header>
   );
@@ -59,9 +60,19 @@ function HeroSection({ status }) {
         </p>
       </div>
 
-      <div className="flex justify-center">
+      <div className="flex justify-center gap-3 flex-wrap">
         <StatusBadge status={status} />
       </div>
+
+      <Link
+        to="/upload"
+        className="inline-flex items-center gap-2 mt-2 px-5 py-2.5 rounded-xl
+                   bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold
+                   transition-colors shadow shadow-brand-500/20"
+      >
+        <UploadIcon />
+        Upload a document
+      </Link>
     </div>
   );
 }
@@ -89,10 +100,10 @@ function StackSection() {
 
 function ModuleStatusSection() {
   const modules = [
-    { id: 'M01', name: 'Project Foundation',  done: true  },
-    { id: 'M02', name: 'Document Upload',     done: false },
-    { id: 'M03', name: 'AI Q&A',              done: false },
-    { id: 'M04', name: 'Export & Admin',      done: false },
+    { id: 'M01', name: 'Project Foundation', done: true },
+    { id: 'M02', name: 'Document Upload',    done: true },
+    { id: 'M03', name: 'AI Q&A',             done: false },
+    { id: 'M04', name: 'Export & Admin',     done: false },
   ];
 
   return (
@@ -101,19 +112,11 @@ function ModuleStatusSection() {
       <ul className="space-y-2.5">
         {modules.map(({ id, name, done }) => (
           <li key={id} className="flex items-center gap-3">
-            <span
-              className={`w-5 h-5 rounded-full flex items-center justify-center text-xs shrink-0 ${
-                done
-                  ? 'bg-emerald-500 text-white'
-                  : 'border-2 border-slate-200 text-transparent'
-              }`}
-            >
-              ✓
-            </span>
+            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs shrink-0 ${
+              done ? 'bg-emerald-500 text-white' : 'border-2 border-slate-200 text-transparent'
+            }`}>✓</span>
             <span className="font-mono text-xs text-slate-400 w-8">{id}</span>
-            <span className={`text-sm ${done ? 'text-slate-800 font-medium' : 'text-slate-400'}`}>
-              {name}
-            </span>
+            <span className={`text-sm ${done ? 'text-slate-800 font-medium' : 'text-slate-400'}`}>{name}</span>
             {done && <span className="ml-auto badge-green">Complete</span>}
           </li>
         ))}
@@ -125,25 +128,45 @@ function ModuleStatusSection() {
 function Footer() {
   return (
     <footer className="border-t border-surface-border py-6 text-center text-xs text-slate-400">
-      AI Study Assistant · Module M01 · Project Foundation
+      AI Study Assistant · Module M02 · Document Upload
     </footer>
   );
 }
 
-/* ── Icons (inline SVG, no external dependency) ──────────────────────────── */
+/* ── Icons ───────────────────────────────────────────────────────────────── */
 
 function BookIcon() {
   return (
-    <svg className="w-5 h-5 text-brand-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+    <svg className="w-5 h-5 text-brand-500" fill="none" viewBox="0 0 24 24"
+      stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round"
+        d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987
+           8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292
+           c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0
+           00-6 2.292m0-14.25v14.25" />
     </svg>
   );
 }
 
 function SparkleIcon() {
   return (
-    <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6} aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+    <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24"
+      stroke="currentColor" strokeWidth={1.6} aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round"
+        d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813
+           a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813
+           a4.5 4.5 0 00-3.09 3.09z" />
+    </svg>
+  );
+}
+
+function UploadIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24"
+      stroke="currentColor" strokeWidth={2} aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round"
+        d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021
+           18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
     </svg>
   );
 }
