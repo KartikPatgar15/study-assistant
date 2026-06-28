@@ -1,22 +1,31 @@
 import { Link } from 'react-router-dom';
-import { useUpload, formatBytes } from '../hooks/useUpload.js';
-import UploadZone       from '../components/upload/UploadZone.jsx';
-import SelectedFileCard from '../components/upload/SelectedFileCard.jsx';
-import UploadProgress   from '../components/upload/UploadProgress.jsx';
+import { useUpload } from '../hooks/useUpload.js';
+import UploadZone            from '../components/upload/UploadZone.jsx';
+import SelectedFileCard      from '../components/upload/SelectedFileCard.jsx';
+import UploadProgress        from '../components/upload/UploadProgress.jsx';
+import ProcessingStages      from '../components/processing/ProcessingStages.jsx';
+import KnowledgeStages       from '../components/knowledge/KnowledgeStages.jsx';
+import ProcessingResultPanel from '../components/processing/ProcessingResultPanel.jsx';
 
 /**
- * M02 Upload page – /upload
+ * Upload page – /upload
  *
- * Orchestrates the upload flow:
- *   idle → file selected → uploading → success | error
+ * M03.5 extends the pipeline with a 'knowledge' status phase. The page now
+ * cycles through four distinct states visible to the user:
  *
- * All state lives in useUpload(); this component is purely presentational.
+ *   uploading   → bytes transferring      (UploadProgress)
+ *   processing  → M03 PDF extraction      (ProcessingStages)
+ *   knowledge   → M03.5 knowledge builder (KnowledgeStages)
+ *   success     → full result panel       (ProcessingResultPanel)
+ *
+ * All state lives in useUpload(); this component remains purely presentational.
  */
 export default function UploadPage() {
   const {
     selectedFile,
     status,
     progress,
+    processingStage,
     validationError,
     serverError,
     uploadResult,
@@ -25,8 +34,11 @@ export default function UploadPage() {
     upload,
   } = useUpload();
 
-  const isUploading = status === 'uploading';
-  const isSuccess   = status === 'success';
+  const isUploading  = status === 'uploading';
+  const isProcessing = status === 'processing';
+  const isKnowledge  = status === 'knowledge';
+  const isSuccess    = status === 'success';
+  const isBusy       = isUploading || isProcessing || isKnowledge;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -45,40 +57,42 @@ export default function UploadPage() {
             </p>
           </div>
 
-          {/* ── Success state ─────────────────────────────────────────────── */}
+          {/* ── Success ──────────────────────────────────────────────────── */}
           {isSuccess && uploadResult ? (
-            <SuccessPanel result={uploadResult} onUploadAnother={clearFile} />
+            <ProcessingResultPanel result={uploadResult} onUploadAnother={clearFile} />
           ) : (
             <>
-              {/* ── Drop zone (hidden once a valid file is staged) ─────── */}
-              {!selectedFile && (
-                <UploadZone onFileSelected={selectFile} disabled={isUploading} />
+              {/* ── Drop zone ──────────────────────────────────────────── */}
+              {!selectedFile && !isBusy && (
+                <UploadZone onFileSelected={selectFile} disabled={isBusy} />
               )}
 
               {/* ── Validation error ───────────────────────────────────── */}
-              {validationError && (
-                <ErrorBanner message={validationError} />
-              )}
+              {validationError && <ErrorBanner message={validationError} />}
 
               {/* ── Staged file card ───────────────────────────────────── */}
-              {selectedFile && (
+              {selectedFile && !isProcessing && !isKnowledge && (
                 <SelectedFileCard
                   file={selectedFile}
                   onRemove={clearFile}
-                  disabled={isUploading}
+                  disabled={isBusy}
                 />
               )}
 
-              {/* ── Progress bar ───────────────────────────────────────── */}
+              {/* ── Upload progress bar ────────────────────────────────── */}
               {isUploading && <UploadProgress progress={progress} />}
 
+              {/* ── M03 processing stages ──────────────────────────────── */}
+              {isProcessing && <ProcessingStages stage={processingStage} />}
+
+              {/* ── M03.5 knowledge stages ─────────────────────────────── */}
+              {isKnowledge && <KnowledgeStages stage={processingStage} />}
+
               {/* ── Server error ───────────────────────────────────────── */}
-              {serverError && (
-                <ErrorBanner message={serverError} />
-              )}
+              {serverError && <ErrorBanner message={serverError} />}
 
               {/* ── Upload button ──────────────────────────────────────── */}
-              {selectedFile && !isUploading && (
+              {selectedFile && !isBusy && (
                 <button
                   type="button"
                   onClick={upload}
@@ -90,8 +104,8 @@ export default function UploadPage() {
                 </button>
               )}
 
-              {/* ── Re-select hint after server error ─────────────────── */}
-              {serverError && !isUploading && (
+              {/* ── Re-select after server error ───────────────────────── */}
+              {serverError && !isBusy && (
                 <button
                   type="button"
                   onClick={clearFile}
@@ -107,7 +121,7 @@ export default function UploadPage() {
       </main>
 
       <footer className="border-t border-surface-border py-5 text-center text-xs text-slate-400">
-        AI Study Assistant · Module M02 · Document Upload
+        AI Study Assistant · Module M03.5 · Knowledge Builder
       </footer>
     </div>
   );
@@ -132,56 +146,6 @@ function Header() {
   );
 }
 
-function SuccessPanel({ result, onUploadAnother }) {
-  return (
-    <div className="card px-6 py-8 text-center space-y-5">
-      {/* Checkmark */}
-      <div className="mx-auto w-14 h-14 rounded-full bg-emerald-50 border border-emerald-100
-                      flex items-center justify-center">
-        <CheckIcon />
-      </div>
-
-      <div className="space-y-1">
-        <h2 className="text-lg font-semibold text-slate-800">Upload successful!</h2>
-        <p className="text-sm text-slate-500">Your document has been received.</p>
-      </div>
-
-      {/* File details */}
-      <div className="bg-slate-50 rounded-xl divide-y divide-surface-border text-left text-sm overflow-hidden">
-        <DetailRow label="File name"   value={result.originalFileName} />
-        <DetailRow label="File size"   value={formatBytes(result.fileSize)} />
-        <DetailRow label="Upload ID"   value={result.uploadId} mono />
-        <DetailRow label="Status"      value={result.status} success />
-      </div>
-
-      <button
-        type="button"
-        onClick={onUploadAnother}
-        className="w-full py-2.5 rounded-xl border border-surface-border text-slate-600
-                   text-sm font-medium hover:bg-slate-50 transition-colors"
-      >
-        Upload another document
-      </button>
-    </div>
-  );
-}
-
-function DetailRow({ label, value, mono, success }) {
-  return (
-    <div className="flex items-center justify-between px-4 py-3 gap-4">
-      <span className="text-slate-500 shrink-0">{label}</span>
-      <span className={[
-        'truncate text-right',
-        mono    && 'font-mono text-xs text-slate-600',
-        success && 'font-medium text-emerald-600',
-        !mono && !success && 'text-slate-800 font-medium',
-      ].filter(Boolean).join(' ')}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
 function ErrorBanner({ message }) {
   return (
     <div role="alert" className="flex items-start gap-3 rounded-xl border border-rose-200
@@ -203,15 +167,6 @@ function BookIcon() {
            8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292
            c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0
            00-6 2.292m0-14.25v14.25" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg className="w-7 h-7 text-emerald-500" fill="none" viewBox="0 0 24 24"
-      stroke="currentColor" strokeWidth={2} aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
     </svg>
   );
 }

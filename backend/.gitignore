@@ -8,3 +8,7 @@ application-prod.properties
 # Uploaded files – never commit user data
 uploads/*
 !uploads/.gitkeep
+
+# Processed document output – never commit extracted content
+processed/*
+!processed/.gitkeep

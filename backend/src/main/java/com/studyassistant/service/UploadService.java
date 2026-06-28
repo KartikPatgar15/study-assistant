@@ -2,7 +2,12 @@ package com.studyassistant.service;
 
 import com.studyassistant.config.UploadProperties;
 import com.studyassistant.dto.UploadResponse;
+import com.studyassistant.dto.knowledge.KnowledgeSummary;
+import com.studyassistant.dto.processing.ProcessingResult;
 import com.studyassistant.exception.BadRequestException;
+import com.studyassistant.model.ProcessingStatus;
+import com.studyassistant.service.knowledge.KnowledgeBuilderService;
+import com.studyassistant.service.processing.DocumentProcessingService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,35 +20,34 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Handles all file upload business logic.
+ * Handles file upload storage and orchestrates the processing pipeline.
  *
- * <p>Responsibilities:
+ * <p>Pipeline (all synchronous within the upload request):
  * <ol>
- *   <li>Ensure the upload directory exists on startup.</li>
- *   <li>Validate file size, presence, and type.</li>
- *   <li>Generate a collision-safe stored filename.</li>
- *   <li>Write the file to local disk.</li>
- *   <li>Return a structured {@link UploadResponse}.</li>
+ *   <li>Validate and store the file to disk (M02).</li>
+ *   <li>Extract text, images, metadata, and report via {@link DocumentProcessingService} (M03).</li>
+ *   <li>Build semantic knowledge chunks via {@link KnowledgeBuilderService} (M03.5).</li>
+ *   <li>Return a combined {@link UploadResponse}.</li>
  * </ol>
  *
- * <p>No database interaction occurs here – that belongs to a future module.
+ * <p>Knowledge building is skipped (with a warning) if M03 processing failed,
+ * so a corrupt/encrypted PDF never reaches the chunker.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class UploadService {
 
-    private final UploadProperties uploadProperties;
+    private final UploadProperties          uploadProperties;
+    private final DocumentProcessingService documentProcessingService;
+    private final KnowledgeBuilderService   knowledgeBuilderService;
 
     private Path uploadDirectory;
 
-    /**
-     * Resolves and creates the upload directory on application startup.
-     * Using {@code @PostConstruct} keeps the side-effect explicit and testable.
-     */
     @PostConstruct
     void initUploadDirectory() throws IOException {
         uploadDirectory = Paths.get(uploadProperties.getDirectory()).toAbsolutePath().normalize();
@@ -52,10 +56,10 @@ public class UploadService {
     }
 
     /**
-     * Validates and stores the uploaded file.
+     * Validates, stores, processes, and builds knowledge for the uploaded file.
      *
      * @param file the multipart file received from the HTTP request
-     * @return {@link UploadResponse} describing the stored file
+     * @return {@link UploadResponse} with full pipeline result
      * @throws BadRequestException if the file fails any validation rule
      * @throws IOException         if the file cannot be written to disk
      */
@@ -66,17 +70,16 @@ public class UploadService {
             throw new BadRequestException("No file was provided or the file is empty.");
         }
 
-        // 2. Size check (defence-in-depth; Spring's multipart limit is also configured)
+        // 2. Size check
         if (file.getSize() > uploadProperties.getMaxFileSizeBytes()) {
             throw new BadRequestException(
                     String.format("File size %d bytes exceeds the maximum allowed size of %d bytes (25 MB).",
                             file.getSize(), uploadProperties.getMaxFileSizeBytes()));
         }
 
-        // 3. Resolve and clean the original filename
+        // 3. Clean filename
         String originalFilename = StringUtils.cleanPath(
-                file.getOriginalFilename() != null ? file.getOriginalFilename() : "upload"
-        );
+                file.getOriginalFilename() != null ? file.getOriginalFilename() : "upload");
 
         // 4. Extension check
         String extension = extractExtension(originalFilename).toLowerCase();
@@ -98,24 +101,61 @@ public class UploadService {
             throw new BadRequestException("Filename contains invalid path sequence '..'");
         }
 
-        // 7. Generate unique stored filename and write to disk
-        String uploadId      = UUID.randomUUID().toString();
-        String storedFilename = uploadId + "_" + originalFilename;
-        Path   targetPath    = uploadDirectory.resolve(storedFilename);
+        // 7. Store file
+        Instant uploadTimestamp = Instant.now();
+        String  uploadId        = UUID.randomUUID().toString();
+        String  storedFilename  = uploadId + "_" + originalFilename;
+        Path    targetPath      = uploadDirectory.resolve(storedFilename);
+
+        log.info("Upload received – uploadId={}, file='{}', size={} bytes",
+                uploadId, originalFilename, file.getSize());
 
         Files.copy(file.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
         log.info("Stored file '{}' as '{}' ({} bytes)", originalFilename, storedFilename, file.getSize());
 
-        return UploadResponse.success(uploadId, originalFilename, storedFilename, file.getSize());
+        // 8. M03 – document processing (text + image extraction)
+        ProcessingResult processingResult = documentProcessingService.process(
+                uploadId, originalFilename, storedFilename,
+                targetPath, file.getSize(), uploadTimestamp);
+
+        // 9. M03.5 – knowledge build (chunking + image association + keyword extraction)
+        //    Only run if M03 succeeded or partially succeeded for a PDF file.
+        KnowledgeSummary knowledgeSummary = null;
+        if (processingResult.getStatus() != ProcessingStatus.FAILED
+                && processingResult.getTotalPages() > 0) {
+            try {
+                knowledgeSummary = knowledgeBuilderService.build(uploadId);
+            } catch (IOException e) {
+                // Knowledge build failure is non-fatal: the document is already stored
+                // and M03 output is intact. Log at ERROR and continue.
+                log.error("Knowledge build failed for uploadId={} – pipeline continues without it",
+                        uploadId, e);
+            }
+        } else {
+            log.debug("Knowledge build skipped for uploadId={} (status={}, pages={})",
+                    uploadId, processingResult.getStatus(), processingResult.getTotalPages());
+        }
+
+        // 10. Compose final response
+        ProcessingResult finalResult = ProcessingResult.builder()
+                .status(processingResult.getStatus())
+                .totalPages(processingResult.getTotalPages())
+                .totalImages(processingResult.getTotalImages())
+                .processingDurationMs(processingResult.getProcessingDurationMs())
+                .message(processingResult.getMessage())
+                .knowledge(knowledgeSummary)
+                .build();
+
+        return UploadResponse.success(uploadId, originalFilename, storedFilename,
+                file.getSize(), finalResult);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private String extractExtension(String filename) {
         int dotIndex = filename.lastIndexOf('.');
-        if (dotIndex < 0 || dotIndex == filename.length() - 1) {
-            return "";
-        }
-        return filename.substring(dotIndex + 1);
+        return (dotIndex >= 0 && dotIndex < filename.length() - 1)
+                ? filename.substring(dotIndex + 1)
+                : "";
     }
 }

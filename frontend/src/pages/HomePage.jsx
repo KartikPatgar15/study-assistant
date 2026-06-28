@@ -102,7 +102,8 @@ function ModuleStatusSection() {
   const modules = [
     { id: 'M01', name: 'Project Foundation', done: true },
     { id: 'M02', name: 'Document Upload',    done: true },
-    { id: 'M03', name: 'AI Q&A',             done: false },
+    { id: 'M03', name: 'Document Intelligence', done: true  },
+    { id: 'M03.5', name: 'Knowledge Builder',      done: true  },
     { id: 'M04', name: 'Export & Admin',     done: false },
   ];
 
@@ -128,7 +129,7 @@ function ModuleStatusSection() {
 function Footer() {
   return (
     <footer className="border-t border-surface-border py-6 text-center text-xs text-slate-400">
-      AI Study Assistant · Module M02 · Document Upload
+      AI Study Assistant · Module M03.5 · Knowledge Builder
     </footer>
   );
 }
