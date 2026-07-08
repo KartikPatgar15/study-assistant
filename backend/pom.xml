@@ -69,6 +69,11 @@
 </dependency>
 <!--  Jackson Databind – JSON serialisation for metadata and report files  -->
 <!--  Already transitive via spring-boot-starter-web; declared explicitly for clarity  -->
+<!--  Spring WebFlux – provides WebClient for Gemini REST calls (M04A)  -->
+<dependency>
+<groupId>org.springframework.boot</groupId>
+<artifactId>spring-boot-starter-webflux</artifactId>
+</dependency>
 <!--  Test  -->
 <dependency>
 <groupId>org.springframework.boot</groupId>

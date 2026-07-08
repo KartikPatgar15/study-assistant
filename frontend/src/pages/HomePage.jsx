@@ -104,7 +104,8 @@ function ModuleStatusSection() {
     { id: 'M02', name: 'Document Upload',    done: true },
     { id: 'M03', name: 'Document Intelligence', done: true  },
     { id: 'M03.5', name: 'Knowledge Builder',      done: true  },
-    { id: 'M04', name: 'Export & Admin',     done: false },
+    { id: 'M04A', name: 'AI Q&A Foundation',     done: true  },
+    { id: 'M04B', name: 'Export & Admin',        done: false },
   ];
 
   return (
@@ -129,7 +130,7 @@ function ModuleStatusSection() {
 function Footer() {
   return (
     <footer className="border-t border-surface-border py-6 text-center text-xs text-slate-400">
-      AI Study Assistant · Module M03.5 · Knowledge Builder
+      AI Study Assistant · Module M04A · AI Q&A Foundation
     </footer>
   );
 }

@@ -1,5 +1,6 @@
 package com.studyassistant.exception;
 
+import com.studyassistant.service.ai.AiProviderException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -23,6 +24,7 @@ import java.util.List;
  *   <li>{@link ResourceNotFoundException} → 404</li>
  *   <li>{@link BadRequestException} → 400</li>
  *   <li>{@link MethodArgumentNotValidException} → 400 with field errors</li>
+ *   <li>{@link AiProviderException} → 503 (M04A)</li>
  *   <li>{@link Exception} catch-all → 500</li>
  * </ol>
  */
@@ -71,11 +73,25 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
+    /**
+     * AI provider failures → HTTP 503 Service Unavailable.
+     *
+     * <p>The safe, user-facing message from {@link AiProviderException} is
+     * returned; the full provider error detail is already logged inside
+     * {@link com.studyassistant.service.ai.GeminiProvider}.
+     */
+    @ExceptionHandler(AiProviderException.class)
+    public ResponseEntity<ApiError> handleAiProvider(
+            AiProviderException ex, HttpServletRequest request) {
+
+        log.warn("AI provider failure on {} {}: {}", request.getMethod(), request.getRequestURI(), ex.getMessage());
+        return buildResponse(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), request);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleGeneric(
             Exception ex, HttpServletRequest request) {
 
-        // Log at ERROR with full stack trace for unexpected exceptions.
         log.error("Unexpected error processing {} {}: {}",
                 request.getMethod(), request.getRequestURI(), ex.getMessage(), ex);
 

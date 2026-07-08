@@ -1,21 +1,30 @@
+import { useNavigate } from 'react-router-dom';
 import { formatBytes } from '../../hooks/useUpload.js';
 import KnowledgeResultPanel from '../knowledge/KnowledgeResultPanel.jsx';
 
 /**
  * Shown after a successful upload + processing + knowledge build cycle.
  *
- * M03.5 adds a KnowledgeResultPanel section beneath the existing document
- * intelligence section. All previous sections are preserved unchanged.
+ * M04A adds a "Start chatting" button that navigates to /chat/:uploadId
+ * when a knowledge base was successfully built (PDF uploads only).
  *
  * Props:
  *   result            – full server UploadResponse JSON
  *   onUploadAnother() – callback to reset the page
  */
 export default function ProcessingResultPanel({ result, onUploadAnother }) {
-  const p           = result.processing;   // null for non-PDF files
-  const hasProcData = p != null;
-  const status      = p?.status ?? 'SUCCESS';
-  const statusMeta  = resolveStatus(status);
+  const navigate       = useNavigate();
+  const p              = result.processing;
+  const hasProcData    = p != null;
+  const status         = p?.status ?? 'SUCCESS';
+  const statusMeta     = resolveStatus(status);
+  const hasChatSupport = p?.knowledge != null;
+
+  const handleStartChat = () => {
+    navigate(`/chat/${result.uploadId}`, {
+      state: { documentName: result.originalFileName },
+    });
+  };
 
   return (
     <div className="card px-6 py-8 space-y-6">
@@ -51,7 +60,7 @@ export default function ProcessingResultPanel({ result, onUploadAnother }) {
         </Section>
       )}
 
-      {/* ── Knowledge base (M03.5 – PDF only, non-null knowledge field) ── */}
+      {/* ── Knowledge base (M03.5 – PDF only) ──────────────────────────── */}
       {hasProcData && p.knowledge && (
         <KnowledgeResultPanel knowledge={p.knowledge} />
       )}
@@ -80,6 +89,22 @@ export default function ProcessingResultPanel({ result, onUploadAnother }) {
         </div>
       )}
 
+      {/* ── Start chatting (M04A – only when knowledge base is ready) ───── */}
+      {hasChatSupport && (
+        <button
+          type="button"
+          onClick={handleStartChat}
+          className="w-full py-3 rounded-xl bg-brand-500 hover:bg-brand-600
+                     text-white font-semibold text-sm transition-colors
+                     focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2
+                     flex items-center justify-center gap-2"
+        >
+          <ChatIcon />
+          Ask questions about this document
+        </button>
+      )}
+
+      {/* ── Upload another ─────────────────────────────────────────────── */}
       <button
         type="button"
         onClick={onUploadAnother}
@@ -183,6 +208,21 @@ function AlertIcon({ large }) {
         d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0
            2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898
            0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+    </svg>
+  );
+}
+
+function ChatIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24"
+      stroke="currentColor" strokeWidth={2} aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round"
+        d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227
+           1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133
+           a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379
+           c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228
+           A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513
+           C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
     </svg>
   );
 }
