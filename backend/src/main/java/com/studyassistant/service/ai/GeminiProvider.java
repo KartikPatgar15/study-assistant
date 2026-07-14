@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
-
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 import java.util.Map;
 
@@ -48,6 +48,14 @@ public class GeminiProvider implements AiProvider {
         String model  = config.getGemini().getModel();
         String apiKey = config.getGemini().getApiKey();
 
+System.out.println("================================");
+System.out.println("API KEY PRESENT : " + !apiKey.isBlank());
+System.out.println("KEY LENGTH      : " + apiKey.length());
+System.out.println("KEY PREFIX      : " +
+        (apiKey.length() >= 5 ? apiKey.substring(0, 5) : apiKey));
+System.out.println("================================");
+
+        
         if (apiKey == null || apiKey.isBlank()) {
             throw new AiProviderException(
                     "Gemini API key is not configured. Set app.ai.gemini.api-key in " +
@@ -124,8 +132,17 @@ public class GeminiProvider implements AiProvider {
 
     // ── Response shape records (maps Gemini JSON structure) ───────────────────
 
-    static record GeminiResponse(List<Candidate> candidates) {}
-    static record Candidate(Content content) {}
-    static record Content(List<Part> parts) {}
-    static record Part(String text) {}
+    // ── Response shape records (maps Gemini JSON structure) ───────────────────
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+static record GeminiResponse(List<Candidate> candidates) {}
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+static record Candidate(Content content) {}
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+static record Content(List<Part> parts) {}
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+static record Part(String text) {}
 }

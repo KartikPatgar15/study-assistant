@@ -1,0 +1,182 @@
+package com.studyassistant.service.ai;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.studyassistant.dto.chat.ChatRequest;
+import com.studyassistant.dto.chat.ChatResponse;
+import com.studyassistant.dto.knowledge.KnowledgeChunk;
+import com.studyassistant.dto.knowledge.KnowledgeDocument;
+import com.studyassistant.dto.knowledge.KnowledgeSummary;
+import com.studyassistant.exception.ResourceNotFoundException;
+import com.studyassistant.service.processing.ProcessedStorage;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.nio.file.Path;
+import java.time.Instant;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.*;
+
+/**
+ * Unit tests for {@link ChatService}.
+ * AiProvider and ProcessedStorage are mocked; real knowledge.json is written to TempDir.
+ */
+@ExtendWith(MockitoExtension.class)
+class ChatServiceTest {
+
+    @TempDir
+    Path tempDir;
+
+    @Mock private AiProvider    aiProvider;
+
+    private ProcessedStorage processedStorage;
+    private ObjectMapper     objectMapper;
+    private ChatService      chatService;
+
+    @BeforeEach
+    void setUp() throws Exception {
+        objectMapper = new ObjectMapper()
+                .registerModule(new JavaTimeModule())
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
+        processedStorage = new ProcessedStorage();
+        ReflectionTestUtils.setField(processedStorage, "outputDirectory",
+                tempDir.resolve("processed").toString());
+        processedStorage.init();
+
+        PythonAiService pythonAiService = Mockito.mock(PythonAiService.class);
+
+chatService = new ChatService(pythonAiService);
+    }
+
+    @Test
+    void answer_noKnowledgeFile_throwsResourceNotFoundException() {
+        ChatRequest req = request("nonexistent-id", "What is this about?");
+
+        assertThatThrownBy(() -> chatService.answer(req))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("nonexistent-id");
+    }
+
+    @Test
+    void answer_validKnowledge_callsAiProviderAndReturnsResponse() throws Exception {
+        String uploadId = "upload-001";
+        writeKnowledge(uploadId, List.of("Operating systems manage hardware resources."));
+        when(aiProvider.ask(anyString())).thenReturn("An OS manages hardware.");
+        when(aiProvider.providerName()).thenReturn("gemini");
+        when(aiProvider.modelName()).thenReturn("gemini-2.5-flash");
+
+        ChatResponse response = chatService.answer(request(uploadId, "What does an OS do?"));
+
+        assertThat(response.getAnswer()).isEqualTo("An OS manages hardware.");
+        assertThat(response.getProvider()).isEqualTo("gemini");
+        assertThat(response.getModel()).isEqualTo("gemini-2.5-flash");
+        assertThat(response.getTimestamp()).isNotNull();
+        verify(aiProvider, times(1)).ask(anyString());
+    }
+
+    @Test
+    void answer_promptContainsChunkText() throws Exception {
+        String uploadId = "upload-002";
+        writeKnowledge(uploadId, List.of("Deadlocks occur when processes wait indefinitely."));
+        when(aiProvider.ask(anyString())).thenReturn("A deadlock is ...");
+        when(aiProvider.providerName()).thenReturn("gemini");
+        when(aiProvider.modelName()).thenReturn("gemini-2.5-flash");
+
+        chatService.answer(request(uploadId, "What is a deadlock?"));
+
+        // Verify the prompt sent to the AI contains the study material
+        verify(aiProvider).ask(argThat(prompt ->
+                prompt.contains("Deadlocks occur when processes wait indefinitely.")
+                && prompt.contains("What is a deadlock?")));
+    }
+
+    @Test
+    void answer_promptContainsSystemInstruction() throws Exception {
+        String uploadId = "upload-003";
+        writeKnowledge(uploadId, List.of("Some content here."));
+        when(aiProvider.ask(anyString())).thenReturn("Answer.");
+        when(aiProvider.providerName()).thenReturn("gemini");
+        when(aiProvider.modelName()).thenReturn("gemini-2.5-flash");
+
+        chatService.answer(request(uploadId, "A question"));
+
+        verify(aiProvider).ask(argThat(prompt ->
+                prompt.contains("academic study assistant")
+                && prompt.contains("Answer ONLY using the supplied study material")));
+    }
+
+    @Test
+    void answer_multipleChunks_concatenatesAllText() throws Exception {
+        String uploadId = "upload-004";
+        writeKnowledge(uploadId, List.of("Chunk one content.", "Chunk two content.", "Chunk three content."));
+        when(aiProvider.ask(anyString())).thenReturn("Combined answer.");
+        when(aiProvider.providerName()).thenReturn("gemini");
+        when(aiProvider.modelName()).thenReturn("gemini-2.5-flash");
+
+        chatService.answer(request(uploadId, "Question?"));
+
+        verify(aiProvider).ask(argThat(prompt ->
+                prompt.contains("Chunk one content.")
+                && prompt.contains("Chunk two content.")
+                && prompt.contains("Chunk three content.")));
+    }
+
+    @Test
+    void answer_aiProviderThrows_propagatesException() throws Exception {
+        String uploadId = "upload-005";
+        writeKnowledge(uploadId, List.of("Some content."));
+        when(aiProvider.ask(anyString())).thenThrow(new AiProviderException("Provider down"));
+
+        assertThatThrownBy(() -> chatService.answer(request(uploadId, "Question?")))
+                .isInstanceOf(AiProviderException.class)
+                .hasMessageContaining("Provider down");
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private ChatRequest request(String uploadId, String question) {
+        ChatRequest r = new ChatRequest();
+        r.setUploadId(uploadId);
+        r.setQuestion(question);
+        return r;
+    }
+
+    private void writeKnowledge(String uploadId, List<String> chunkTexts) throws Exception {
+        Path root = processedStorage.createOutputDirectories(uploadId);
+
+        List<KnowledgeChunk> chunks = new java.util.ArrayList<>();
+        for (int i = 0; i < chunkTexts.size(); i++) {
+            chunks.add(KnowledgeChunk.builder()
+                    .chunkId(i + 1)
+                    .pages(List.of(i + 1))
+                    .startPage(i + 1)
+                    .endPage(i + 1)
+                    .text(chunkTexts.get(i))
+                    .wordCount(chunkTexts.get(i).split("\\s+").length)
+                    .characterCount(chunkTexts.get(i).length())
+                    .keywords(List.of())
+                    .relatedImages(List.of())
+                    .createdTimestamp(Instant.now())
+                    .build());
+        }
+
+        KnowledgeDocument doc = KnowledgeDocument.builder()
+                .uploadId(uploadId)
+                .chunks(chunks)
+                .summary(KnowledgeSummary.builder().totalChunks(chunks.size()).build())
+                .build();
+
+        objectMapper.writerWithDefaultPrettyPrinter()
+                .writeValue(root.resolve("knowledge.json").toFile(), doc);
+    }
+}

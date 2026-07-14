@@ -1,14 +1,74 @@
+# ===========================
+# Spring Boot / Maven
+# ===========================
+
 target/
 *.log
 logs/
-application-local.properties
-application-prod.properties
+
 .mvn/wrapper/maven-wrapper.jar
 
-# Uploaded files – never commit user data
+# Local configuration
+application-local.properties
+application-prod.properties
+
+# ===========================
+# User Data
+# ===========================
+
 uploads/*
 !uploads/.gitkeep
 
-# Processed document output – never commit extracted content
 processed/*
 !processed/.gitkeep
+
+# ===========================
+# Python
+# ===========================
+
+python-ai/venv/
+python-ai/.venv/
+
+python-ai/__pycache__/
+python-ai/**/*.pyc
+python-ai/**/*.pyo
+
+python-ai/.env
+
+# ===========================
+# IDE
+# ===========================
+
+.vscode/
+.idea/
+*.iml
+
+# ===========================
+# OS Files
+# ===========================
+
+.DS_Store
+Thumbs.db
+
+# ===========================
+# Python Logs
+# ===========================
+
+python-ai/*.log
+
+# ===========================
+# Test / Coverage
+# ===========================
+
+.coverage
+.pytest_cache/
+htmlcov/
+
+# ===========================
+# Environment Files
+# ===========================
+
+.env
+.env.*
+!.env.example
+# Python virtual environments
